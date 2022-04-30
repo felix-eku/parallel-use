@@ -12,9 +12,9 @@ def generate_orders(
     """
     Generate a pandas.DataFrame, the rows of which represent random orders.
 
-    The index of the DataFrame represents the order IDs,
-    the column "preferred_start" the preferred start time
-    and the column "processing_time" the processing time.
+    The index of the DataFrame represents the IDs of the orders,
+    the column "preferred_start" the preferred start times
+    and the column "processing_time" the processing times in seconds.
     """
     if start is None:
         start = datetime.now()
@@ -29,6 +29,6 @@ def generate_orders(
     return pd.DataFrame(
         {
             "preferred_start": start + step * np.arange(n) + deviation * rng.standard_normal(n),
-            "processing_time": max_time * rng.random(n),
-        }
+            "processing_time": (max_time.total_seconds() * rng.random(n)).astype(int, copy=False),
+        },
     )
