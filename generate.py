@@ -32,3 +32,8 @@ def generate_orders(
             "processing_time": (max_time.total_seconds() * rng.random(n)).astype(int, copy=False),
         },
     )
+
+
+def write_orders(orders: pd.DataFrame, filename: str):
+    """Write the orders to a csv-file."""
+    orders.to_csv(filename, header=False, index=True, date_format="%Y%m%d %H:%M:%S")
