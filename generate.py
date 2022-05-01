@@ -1,3 +1,4 @@
+import argparse
 from numpy.random import default_rng
 from datetime import datetime, timedelta
 import numpy as np
@@ -37,3 +38,19 @@ def generate_orders(
 def write_orders(orders: pd.DataFrame, filename: str):
     """Write the orders to a csv-file."""
     orders.to_csv(filename, header=False, index=True, date_format="%Y%m%d %H:%M:%S")
+
+
+def main():
+    parser = argparse.ArgumentParser(
+        description="Generate a csv-file with random orders."
+    )
+    parser.add_argument("n", type=int, help="number of orders to generate")
+    parser.add_argument("file", help="name of the output csv-file")
+    args = parser.parse_args()
+
+    orders = generate_orders(args.n)
+    write_orders(orders, args.file)
+
+
+if __name__ == "__main__":
+    main()
