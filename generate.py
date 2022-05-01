@@ -1,4 +1,5 @@
 import argparse
+from typing import Optional
 from numpy.random import default_rng
 from datetime import datetime, timedelta
 import numpy as np
@@ -7,9 +8,9 @@ import pandas as pd
 
 def generate_orders(
     n: int, 
-    start: datetime = None, step: timedelta = None, deviation: timedelta = None, 
-    max_time: timedelta = None, seed: int = 0
-):
+    start: Optional[datetime] = None, step: Optional[timedelta] = None, deviation: Optional[timedelta] = None, 
+    max_time: Optional[timedelta] = None, seed: int = 0
+) -> pd.DataFrame:
     """
     Generate a pandas.DataFrame, the rows of which represent random orders.
 
@@ -29,18 +30,18 @@ def generate_orders(
     rng = default_rng(seed)
     return pd.DataFrame(
         {
-            "preferred_start": start + step * np.arange(n) + deviation * rng.standard_normal(n),
+            "preferred_start": start + step * np.arange(n) + deviation * rng.standard_normal(n),  # type: ignore
             "processing_time": (max_time.total_seconds() * rng.random(n)).astype(int, copy=False),
         },
     )
 
 
-def write_orders(orders: pd.DataFrame, filename: str):
+def write_orders(orders: pd.DataFrame, filename: str) -> None:
     """Write the orders to a csv-file."""
     orders.to_csv(filename, header=False, index=True, date_format="%Y%m%d %H:%M:%S")
 
 
-def main():
+def main() -> None:
     parser = argparse.ArgumentParser(
         description="Generate a csv-file with random orders."
     )
