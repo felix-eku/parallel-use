@@ -1,8 +1,11 @@
 import argparse
 import csv
 from datetime import datetime, timedelta
-from typing import Iterable, NewType, Optional, Type, TypeVar
+from typing import Generator, Iterable, NewType, Optional, Type, TypeVar
 from attrs import define
+
+
+date_format = "%Y%m%d %H:%M:%S"
 
 
 OrderId = NewType('OrderId', int)
@@ -19,7 +22,7 @@ class Order:
     def parse(cls: Type[O], row: Iterable[str]) -> O:
         row_iter = iter(row)
         id = OrderId(int(next(row_iter)))
-        start = datetime.strptime(next(row_iter), "%Y%m%d %H:%M:%S")
+        start = datetime.strptime(next(row_iter), date_format)
         duration = Seconds(int(next(row_iter)))
         return cls(id, start, duration)
 
@@ -50,6 +53,12 @@ class Job:
         if self.max_orders < len(self.orders):
             raise ValueError(f"Job can only have {self.max_orders} orders, but got {len(self.orders)} orders.")
         self.duration = max(map(lambda order: order.duration, self.orders), default=Seconds(0))
+
+    def format(self) -> Generator[str, None, None]:
+        assert self.start is not None, "Job needs to have a start date set."
+        yield self.start.strftime(date_format)
+        for order in self.orders:
+            yield f"{order.id:d}"
 
 
 def naively_group_orders(orders: Iterable[Order], m: int, k: Seconds) -> list[Job]:
@@ -90,6 +99,14 @@ def determine_job_starts(jobs: Iterable[Job], start: datetime) -> None:
     for job in jobs:
         job.start = start
         start += timedelta(seconds=job.duration)
+
+
+def format_output(jobs: Iterable[Job], output: str) -> None:
+    """Format the `jobs` as csv-rows and write the resulting csv-file to `output`."""
+    with open(output, 'w', newline='') as csvfile:
+        writer = csv.writer(csvfile)
+        for job in jobs:
+            writer.writerow(job.format())
     
 
 def main():
