@@ -1,7 +1,7 @@
 import argparse
 import csv
 from datetime import datetime
-from typing import Iterable, NewType, Type, TypeVar
+from typing import Iterable, NewType, Optional, Type, TypeVar
 from attrs import define
 
 
@@ -33,6 +33,21 @@ def parse_input(input: str) -> list[Order]:
     with open(input, newline='') as csvfile:
         csvreader = csv.reader(csvfile)
         return [Order.parse(row) for row in csvreader]
+
+
+@define(init=False)
+class Job:
+    max_orders: int
+    start: datetime | None
+    orders: list[Order]
+
+    def __init__(self, m: int, orders: Iterable[Order], start: Optional[datetime] = None) -> None:
+        assert m >= 1, "Maximum number of orders is non-positive."
+        self.max_orders = m
+        self.start = start
+        self.orders = sorted(orders, key=lambda order: order.start)
+        if self.max_orders < len(self.orders):
+            raise ValueError(f"Job can only have {self.max_orders} orders, but got {len(self.orders)} orders.")
     
 
 def main():
