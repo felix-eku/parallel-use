@@ -1,4 +1,17 @@
 import argparse
+from datetime import datetime
+from typing import NewType
+from attrs import define
+
+
+OrderId = NewType('OrderId', int)
+Seconds = NewType('Seconds', int)
+
+@define()
+class Order:
+    id: OrderId
+    start: datetime
+    duration: Seconds
 
 
 def main():
