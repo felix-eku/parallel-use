@@ -126,7 +126,11 @@ def main():
     parser.add_argument("output", help="output csv-file for the jobs")
     
     args = parser.parse_args()
-    print(args.m, args.k, args.input, args.output)
+
+    orders = parse_input(args.input)
+    jobs = naively_group_orders(orders, args.m, args.k)
+    determine_job_starts(jobs, jobs[0].orders[0].start)
+    format_output(jobs, args.output)
 
 
 if __name__ == "__main__":
