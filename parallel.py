@@ -40,6 +40,7 @@ class Job:
     max_orders: int
     start: datetime | None
     orders: list[Order]
+    duration: Seconds
 
     def __init__(self, m: int, orders: Iterable[Order], start: Optional[datetime] = None) -> None:
         assert m >= 1, "Maximum number of orders is non-positive."
@@ -48,6 +49,7 @@ class Job:
         self.orders = sorted(orders, key=lambda order: order.start)
         if self.max_orders < len(self.orders):
             raise ValueError(f"Job can only have {self.max_orders} orders, but got {len(self.orders)} orders.")
+        self.duration = max(map(lambda order: order.duration, self.orders), default=Seconds(0))
 
 
 def naively_group_orders(orders: Iterable[Order], m: int, k: Seconds) -> list[Job]:
@@ -77,6 +79,17 @@ def naively_group_orders(orders: Iterable[Order], m: int, k: Seconds) -> list[Jo
         i = j
 
     return jobs
+
+
+def determine_job_starts(jobs: Iterable[Job], start: datetime) -> None:
+    """
+    Set the start time of the `jobs`, such that the next starts when the previous ends.
+
+    The start time of the first job is given by `start`.
+    """
+    for job in jobs:
+        job.start = start
+        start += timedelta(seconds=job.duration)
     
 
 def main():
