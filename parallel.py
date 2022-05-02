@@ -1,18 +1,39 @@
 import argparse
+import csv
 from datetime import datetime
-from typing import NewType
+from typing import Iterable, NewType, Type, TypeVar
 from attrs import define
 
 
 OrderId = NewType('OrderId', int)
 Seconds = NewType('Seconds', int)
 
+O = TypeVar('O', bound='Order')
 @define()
 class Order:
     id: OrderId
     start: datetime
     duration: Seconds
 
+    @classmethod
+    def parse(cls: Type[O], row: Iterable[str]) -> O:
+        row_iter = iter(row)
+        id = OrderId(int(next(row_iter)))
+        start = datetime.strptime(next(row_iter), "%Y%m%d %H:%M:%S")
+        duration = Seconds(int(next(row_iter)))
+        return cls(id, start, duration)
+
+
+def parse_input(input: str) -> list[Order]:
+    """
+    Parse orders from the csv-file `input`.
+
+    Each row of `input` should contain the ID, preferred start time and duration of an order.
+    """
+    with open(input, newline='') as csvfile:
+        csvreader = csv.reader(csvfile)
+        return [Order.parse(row) for row in csvreader]
+    
 
 def main():
     parser = argparse.ArgumentParser(
