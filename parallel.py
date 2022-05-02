@@ -1,6 +1,6 @@
 import argparse
 import csv
-from datetime import datetime
+from datetime import datetime, timedelta
 from typing import Iterable, NewType, Optional, Type, TypeVar
 from attrs import define
 
@@ -48,6 +48,35 @@ class Job:
         self.orders = sorted(orders, key=lambda order: order.start)
         if self.max_orders < len(self.orders):
             raise ValueError(f"Job can only have {self.max_orders} orders, but got {len(self.orders)} orders.")
+
+
+def naively_group_orders(orders: Iterable[Order], m: int, k: Seconds) -> list[Job]:
+    """
+    Create a naive list of jobs.
+
+    First sort `orders` by their preferred start.
+    Try to suscessively take `m` orders from the front of the list of remaining orders
+    and add them to the same job.
+    If the restraint that the difference between the preferred start times of orders of the same job
+    must be less than or equal to `k` seconds would be violated,
+    take as many orders as possible, such that the restaint is still fulfilled.
+    """
+    orders = sorted(orders, key=lambda order: order.start)
+    max_start_diff = timedelta(seconds=abs(k))
+    n = len(orders)
+
+    jobs = list()
+    
+    i = 0  # index of the first order included in the current job
+    while i < n:
+        j = min(i + m, n)  # index of the first excluded order
+        latest_start = orders[i].start + max_start_diff
+        while latest_start < orders[j-1].start:  # last included order is at j-1
+            j -= 1
+        jobs.append(Job(m, orders[i:j]))
+        i = j
+
+    return jobs
     
 
 def main():
