@@ -1,8 +1,11 @@
 import argparse
 import csv
 from datetime import datetime, timedelta
-from typing import Generator, Iterable, NewType, Optional, Type, TypeVar
+from itertools import islice
+from typing import Generator, Iterable, NewType, Optional, Type, TypeVar, Tuple
+
 from attrs import define
+
 
 
 date_format = "%Y%m%d %H:%M:%S"
@@ -88,6 +91,129 @@ def naively_group_orders(orders: Iterable[Order], m: int, k: Seconds) -> list[Jo
         i = j
 
     return jobs
+
+
+def reduce_duration(job1: Job, job2: Job, m: int, k: Seconds) -> Tuple[Job, Job] | Job | None:
+    """
+    Try to rearrange the orders between the jobs, such that their total duration decreases.
+
+    Take into account that the maximum number of orders per job is `m`
+    and that the preferred starts of orders of the same job can at most be `k` seconds apart.
+
+    Return either a pair of jobs with shorter total duration or a single job if possible
+    or None if the total duration cannot be decreased.
+    """
+    # The algorithm relies on the following observation:
+    # The duration of the longer job is always the duration of the longest order.
+    # Therefore the total duration of the jobs can only be decreased
+    # by decreasing the duration of the shorter job.
+    # To achieve this, at least the order with the longest duration of the shorter job
+    # must be moved to the longer job (possibly exchanging it with an order with shorter duration).
+    max_start_diff = timedelta(seconds=abs(k))
+    earliest_start = min(job1.orders[0].start, job2.orders[0].start)
+    latest_start = max(job1.orders[-1].start, job2.orders[-1].start)
+    if latest_start - earliest_start <= max_start_diff:
+        # All orders can be arbitrarily moved between the two jobs
+        # without violating the constraint.
+        orders = job1.orders.copy()
+        orders.extend(job2.orders)
+        if len(orders) <= m:
+            # All orders can be part of a single job.
+            return Job(m, orders)
+        orders.sort(key=lambda order: order.duration)
+        if min(job1.duration, job2.duration) <= orders[-m-1].duration:
+            # Rearranging the orders between jobs does not improve the total duration.
+            return None
+        # Grouping the m longest orders in one job results in the shortest duration for the other job.
+        return Job(m, orders[:-m]), Job(m, orders[-m:])
+    else:
+        # Let job1 have the order with the earliest preferred start.
+        # This implies that job2 has the order with the latest preferred start,
+        # since the difference between earliest and latest preferred start is larger than k seconds
+        # and therefore cannot occur between orders of the same job.
+        if job1.orders[0].start > job2.orders[0].start:
+            job1, job2 = job2, job1
+        # Earliest preferred start of orders that could be part of job2.
+        overlap_begin = latest_start - max_start_diff
+        # Latest preferred start of orders that could be part of job1.
+        overlap_end = earliest_start + max_start_diff
+        if overlap_end < overlap_begin:
+            # No orders can be rearranged between the jobs.
+            return None
+        # Linearly search for the indices of the orders that can be rearranged between the jobs.
+        if job1.duration < job2.duration:
+            for i, order in enumerate(job1.orders):
+                if overlap_begin <= order.start:
+                    begin = i
+                    break
+                elif order.duration >= job1.duration:
+                    # The longest order of the shorter job cannot be moved to the other job.
+                    # This implies that the total duration of the jobs cannot be reduced.
+                    return None
+            else:
+                # This should be unreachable, 
+                # since each job should contain an order that has the same duration as the job.
+                return None
+            for i, order in enumerate(reversed(job2.orders)):
+                if order.start <= overlap_end:
+                    end = i + 1  # end is exclusive.
+                    break
+            else:
+                end = 0
+            # Number of (possible) orders in the longer job that can be rearranged.
+            m_reduced = m - (len(job2.orders) - end)
+        else:
+            for i, order in enumerate(job1.orders):
+                if overlap_begin <= order.start:
+                    begin = i
+                    break
+            else:
+                begin = len(job1.orders)
+            for i, order in enumerate(reversed(job2.orders)):
+                if order.start <= overlap_end:
+                    end = i + 1  # end is exclusive.
+                    break
+                elif order.duration >= job2.duration:
+                    # The longest order of the shorter job cannot be moved to the other job.
+                    # This implies that the total duration of the jobs cannot be reduced.
+                    return None
+            else:
+                # This should be unreachable, 
+                # since each job should contain an order that has the same duration as the job.
+                return None
+            # Number of (possible) orders in the longer job that can be rearranged.
+            m_reduced = m - begin
+        orders = job1.orders[begin:]
+        orders.extend(job2.orders[:end])
+        if len(orders) <= m_reduced:
+            # All rearrangable orders can be part of the longer job.
+            # This reduces the duration of the shorter job,
+            # since the durations of the remaining orders of the shorter job are shorter than its duration.
+            if job1.duration < job2.duration:
+                orders.extend(job2.orders[end:])
+                return Job(m, job1.orders[:begin]), Job(m, orders)
+            else:
+                orders.extend(job1.orders[:begin])
+                return Job(m, orders), Job(m, job2.orders[end:])
+        orders.sort(key=lambda order: order.duration)
+        if job1.duration < job2.duration:
+            if job1.duration <= orders[-m_reduced-1].duration:
+                # Rearranging orders between the jobs does not decrease the durations.
+                return None
+            orders1 = job1.orders[:begin]
+            orders1.extend(orders[:-m_reduced])
+            orders2 = orders[-m_reduced:]
+            orders2.extend(job2.orders[end:])
+            return Job(m, orders1), Job(m, orders2)
+        else:
+            if job2.duration <= orders[-m_reduced-1].duration:
+                # Rearranging orders between the jobs does not decrease the durations.
+                return None
+            orders1 = job1.orders[:begin]
+            orders1.extend(orders[-m_reduced:])
+            orders2 = orders[:-m_reduced]
+            orders2.extend(job2.orders[end:])
+            return Job(m, orders1), Job(m, orders2)
 
 
 def determine_job_starts(jobs: Iterable[Job], start: datetime) -> None:
