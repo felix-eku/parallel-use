@@ -158,6 +158,9 @@ def reduce_duration(job1: Job, job2: Job, m: int, k: Seconds) -> Tuple[Job, Job]
                     end = i + 1  # end is exclusive.
                     break
             else:
+                if len(job2.orders) == m:
+                    # No orders can be moved to the longer job.
+                    return None
                 end = 0
             # Number of (possible) orders in the longer job that can be rearranged.
             m_reduced = m - (len(job2.orders) - end)
@@ -167,6 +170,9 @@ def reduce_duration(job1: Job, job2: Job, m: int, k: Seconds) -> Tuple[Job, Job]
                     begin = i
                     break
             else:
+                if len(job1.orders) == m:
+                    # No orders can be moved to the longer job.
+                    return None
                 begin = len(job1.orders)
             for i, order in enumerate(reversed(job2.orders)):
                 if order.start <= overlap_end:
