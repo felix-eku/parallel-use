@@ -58,19 +58,19 @@ class Job:
             yield f"{order.id:d}"
 
 
-def naively_group_orders(orders: Iterable[Order], m: int, k: Seconds) -> list[Job]:
+def naively_group_orders(orders: Iterable[Order], m: int, max_diff: timedelta) -> list[Job]:
     """
     Create a naive list of jobs.
 
     First sort `orders` by their preferred start.
     Try to suscessively take `m` orders from the front of the list of remaining orders
     and add them to the same job.
-    If the restraint that the difference between the preferred start times of orders of the same job
-    must be less than or equal to `k` seconds would be violated,
+    If the restraint would be violated
+    that the difference between the preferred start times of orders of the same job
+    must be less than or equal to `max_diff`,
     take as many orders as possible, such that the restaint is still fulfilled.
     """
     orders = sorted(orders, key=lambda order: order.start)
-    max_start_diff = timedelta(seconds=abs(k))
     n = len(orders)
 
     jobs = list()
@@ -78,7 +78,7 @@ def naively_group_orders(orders: Iterable[Order], m: int, k: Seconds) -> list[Jo
     i = 0  # index of the first order included in the current job
     while i < n:
         j = min(i + m, n)  # index of the first excluded order
-        latest_start = orders[i].start + max_start_diff
+        latest_start = orders[i].start + max_diff
         while latest_start < orders[j-1].start:  # last included order is at j-1
             j -= 1
         jobs.append(Job(orders[i:j]))
@@ -87,12 +87,12 @@ def naively_group_orders(orders: Iterable[Order], m: int, k: Seconds) -> list[Jo
     return jobs
 
 
-def reduce_duration(job1: Job, job2: Job, m: int, k: Seconds) -> Tuple[Job, Job] | Job | None:
+def reduce_duration(job1: Job, job2: Job, m: int, max_diff: timedelta) -> Tuple[Job, Job] | Job | None:
     """
     Try to rearrange the orders between the jobs, such that their total duration decreases.
 
     Take into account that the maximum number of orders per job is `m`
-    and that the preferred starts of orders of the same job can at most be `k` seconds apart.
+    and that the preferred starts of orders of the same job can at most be `max_diff` apart.
 
     Return either a pair of jobs with shorter total duration or a single job if possible
     or None if the total duration cannot be decreased.
@@ -103,10 +103,9 @@ def reduce_duration(job1: Job, job2: Job, m: int, k: Seconds) -> Tuple[Job, Job]
     # by decreasing the duration of the shorter job.
     # To achieve this, at least the order with the longest duration of the shorter job
     # must be moved to the longer job (possibly exchanging it with an order with shorter duration).
-    max_start_diff = timedelta(seconds=abs(k))
     earliest_start = min(job1.orders[0].start, job2.orders[0].start)
     latest_start = max(job1.orders[-1].start, job2.orders[-1].start)
-    if latest_start - earliest_start <= max_start_diff:
+    if latest_start - earliest_start <= max_diff:
         # All orders can be arbitrarily moved between the two jobs
         # without violating the constraint.
         orders = job1.orders.copy()
@@ -128,9 +127,9 @@ def reduce_duration(job1: Job, job2: Job, m: int, k: Seconds) -> Tuple[Job, Job]
         if job1.orders[0].start > job2.orders[0].start:
             job1, job2 = job2, job1
         # Earliest preferred start of orders that could be part of job2.
-        overlap_begin = latest_start - max_start_diff
+        overlap_begin = latest_start - max_diff
         # Latest preferred start of orders that could be part of job1.
-        overlap_end = earliest_start + max_start_diff
+        overlap_end = earliest_start + max_diff
         if overlap_end < overlap_begin:
             # No orders can be rearranged between the jobs.
             return None
@@ -216,7 +215,7 @@ def reduce_duration(job1: Job, job2: Job, m: int, k: Seconds) -> Tuple[Job, Job]
             return Job(orders1), Job(orders2)
 
 
-def improve_iteratively(jobs: MutableSequence[Job], m: int, k: Seconds, max_iter: int = 5) -> None:
+def improve_iteratively(jobs: MutableSequence[Job], m: int, max_diff: timedelta, max_iter: int = 5) -> None:
     """
     Iteratively decrease the total duration of the jobs.
 
@@ -231,7 +230,7 @@ def improve_iteratively(jobs: MutableSequence[Job], m: int, k: Seconds, max_iter
         while i < len(jobs) - 1:
             j = i + 1
             while j < len(jobs):
-                result = reduce_duration(jobs[i], jobs[j], m, k)
+                result = reduce_duration(jobs[i], jobs[j], m, max_diff)
                 if result is None:
                     j += 1
                 else:
@@ -283,10 +282,11 @@ def main():
     parser.add_argument("output", help="output csv-file for the jobs")
     
     args = parser.parse_args()
+    max_diff = timedelta(seconds=abs(args.k))
 
     orders = parse_input(args.input)
-    jobs = naively_group_orders(orders, args.m, args.k)
-    improve_iteratively(jobs, args.m, args.k)
+    jobs = naively_group_orders(orders, args.m, max_diff)
+    improve_iteratively(jobs, args.m, max_diff)
     determine_job_starts(jobs, jobs[0].orders[0].start)
     format_output(jobs, args.output)
 
