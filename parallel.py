@@ -42,18 +42,13 @@ def parse_input(input: str) -> list[Order]:
 
 @define(init=False)
 class Job:
-    max_orders: int
     start: datetime | None
     orders: list[Order]
     duration: Seconds
 
-    def __init__(self, m: int, orders: Iterable[Order], start: Optional[datetime] = None) -> None:
-        assert m >= 1, "Maximum number of orders is non-positive."
-        self.max_orders = m
+    def __init__(self, orders: Iterable[Order], start: Optional[datetime] = None) -> None:
         self.start = start
         self.orders = sorted(orders, key=lambda order: order.start)
-        if self.max_orders < len(self.orders):
-            raise ValueError(f"Job can only have {self.max_orders} orders, but got {len(self.orders)} orders.")
         self.duration = max(map(lambda order: order.duration, self.orders), default=Seconds(0))
 
     def format(self) -> Generator[str, None, None]:
@@ -86,7 +81,7 @@ def naively_group_orders(orders: Iterable[Order], m: int, k: Seconds) -> list[Jo
         latest_start = orders[i].start + max_start_diff
         while latest_start < orders[j-1].start:  # last included order is at j-1
             j -= 1
-        jobs.append(Job(m, orders[i:j]))
+        jobs.append(Job(orders[i:j]))
         i = j
 
     return jobs
@@ -118,13 +113,13 @@ def reduce_duration(job1: Job, job2: Job, m: int, k: Seconds) -> Tuple[Job, Job]
         orders.extend(job2.orders)
         if len(orders) <= m:
             # All orders can be part of a single job.
-            return Job(m, orders)
+            return Job(orders)
         orders.sort(key=lambda order: order.duration)
         if min(job1.duration, job2.duration) <= orders[-m-1].duration:
             # Rearranging the orders between jobs does not improve the total duration.
             return None
         # Grouping the m longest orders in one job results in the shortest duration for the other job.
-        return Job(m, orders[:-m]), Job(m, orders[-m:])
+        return Job(orders[:-m]), Job(orders[-m:])
     else:
         # Let job1 have the order with the earliest preferred start.
         # This implies that job2 has the order with the latest preferred start,
@@ -196,10 +191,10 @@ def reduce_duration(job1: Job, job2: Job, m: int, k: Seconds) -> Tuple[Job, Job]
             # since the durations of the remaining orders of the shorter job are shorter than its duration.
             if job1.duration < job2.duration:
                 orders.extend(job2.orders[end:])
-                return Job(m, job1.orders[:begin]), Job(m, orders)
+                return Job(job1.orders[:begin]), Job(orders)
             else:
                 orders.extend(job1.orders[:begin])
-                return Job(m, orders), Job(m, job2.orders[end:])
+                return Job(orders), Job(job2.orders[end:])
         orders.sort(key=lambda order: order.duration)
         if job1.duration < job2.duration:
             if job1.duration <= orders[-m_reduced-1].duration:
@@ -209,7 +204,7 @@ def reduce_duration(job1: Job, job2: Job, m: int, k: Seconds) -> Tuple[Job, Job]
             orders1.extend(orders[:-m_reduced])
             orders2 = orders[-m_reduced:]
             orders2.extend(job2.orders[end:])
-            return Job(m, orders1), Job(m, orders2)
+            return Job(orders1), Job(orders2)
         else:
             if job2.duration <= orders[-m_reduced-1].duration:
                 # Rearranging orders between the jobs does not decrease the durations.
@@ -218,7 +213,7 @@ def reduce_duration(job1: Job, job2: Job, m: int, k: Seconds) -> Tuple[Job, Job]
             orders1.extend(orders[-m_reduced:])
             orders2 = orders[:-m_reduced]
             orders2.extend(job2.orders[end:])
-            return Job(m, orders1), Job(m, orders2)
+            return Job(orders1), Job(orders2)
 
 
 def improve_iteratively(jobs: MutableSequence[Job], m: int, k: Seconds, max_iter: int = 5) -> None:
