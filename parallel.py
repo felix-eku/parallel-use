@@ -57,6 +57,12 @@ class Job:
         for order in self.orders:
             yield f"{order.id:d}"
 
+    def check_orders_constraint(self, max_diff: timedelta) -> None:
+        if self.orders and self.orders[-1].start - self.orders[0].start > max_diff:
+            raise ValueError(
+                f"The largest difference between the preferred starts of the orders is "
+                f"{self.orders[-1].start - self.orders[0].start}, which is larger than {max_diff}.")
+
 
 def naively_group_orders(orders: Iterable[Order], m: int, max_diff: timedelta) -> list[Job]:
     """
@@ -305,10 +311,7 @@ def check_jobs(jobs: Sequence[Job], m: int, max_diff: timedelta):
             raise ValueError(f"Job {job} has {len(job.orders)} orders, which is more than m = {m} orders.")
         if any(order.start > next_order.start for (order, next_order) in pairwise(job.orders)):
             raise ValueError(f"Job.orders {job.orders} are not sorted by preferred start.")
-        if job.orders and job.orders[-1].start - job.orders[0].start > max_diff:
-            raise ValueError(
-                f"The largest difference between the preferred starts of the orders is "
-                f"{job.orders[-1].start - job.orders[0].start}, which is larger than {max_diff}.")
+        job.check_orders_constraint(max_diff)
         if job.duration != max((order.duration for order in job.orders), default=Seconds(0)):
             raise ValueError(f"Job.duration {job.duration} is not the maximum of the durations of the orders {job.orders}.")
         finish = job.start + timedelta(seconds=job.duration)
