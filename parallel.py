@@ -155,7 +155,7 @@ def reduce_duration(job1: Job, job2: Job, m: int, max_diff: timedelta) -> Tuple[
                 return None
             for i, order in enumerate(reversed(job2.orders)):
                 if order.start <= overlap_end:
-                    end = i + 1  # end is exclusive.
+                    end = len(job2.orders) - i  # end is exclusive and i counts from the end.
                     break
             else:
                 if len(job2.orders) == m:
@@ -176,7 +176,7 @@ def reduce_duration(job1: Job, job2: Job, m: int, max_diff: timedelta) -> Tuple[
                 begin = len(job1.orders)
             for i, order in enumerate(reversed(job2.orders)):
                 if order.start <= overlap_end:
-                    end = i + 1  # end is exclusive.
+                    end = len(job2.orders) - i  # end is exclusive and i counts from the end.
                     break
                 elif order.duration >= job2.duration:
                     # The longest order of the shorter job cannot be moved to the other job.
