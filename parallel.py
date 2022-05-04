@@ -2,10 +2,9 @@ import argparse
 import csv
 from datetime import datetime, timedelta
 from itertools import islice
-from typing import Generator, Iterable, NewType, Optional, Type, TypeVar, Tuple
+from typing import Generator, Iterable, MutableSequence, NewType, Optional, Type, TypeVar, Tuple
 
 from attrs import define
-
 
 
 date_format = "%Y%m%d %H:%M:%S"
@@ -214,6 +213,37 @@ def reduce_duration(job1: Job, job2: Job, m: int, k: Seconds) -> Tuple[Job, Job]
             orders2 = orders[:-m_reduced]
             orders2.extend(job2.orders[end:])
             return Job(m, orders1), Job(m, orders2)
+
+
+def improve_iteratively(jobs: MutableSequence[Job], m: int, k: Seconds, max_iter: int = 5) -> None:
+    """
+    Iteratively decrease the total duration of the jobs.
+
+    Iterate over all pairs of jobs with `reduce_duration`.
+    If this returns job(s) with shorter duration(s) replace the pair.
+
+    Repeat until no more durations are reduced or `max_iter` iterations have been performed.
+    """
+    for _ in range(max_iter):
+        improved = False
+        i = 0
+        while i < len(jobs) - 1:
+            j = i + 1
+            while j < len(jobs):
+                result = reduce_duration(jobs[i], jobs[j], m, k)
+                if result is None:
+                    j += 1
+                else:
+                    improved = True
+                    if isinstance(result, Job):
+                        jobs[i] = result
+                        del jobs[j]
+                    else:
+                        jobs[i], jobs[j] = result
+                        j += 1
+            i += 1
+        if not improved:
+            break
 
 
 def determine_job_starts(jobs: Iterable[Job], start: datetime) -> None:
