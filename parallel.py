@@ -313,34 +313,6 @@ def format_output(jobs: Iterable[Job], output: str) -> None:
         writer = csv.writer(csvfile)
         for job in jobs:
             writer.writerow(job.format())
-    
-
-def main():
-    parser = argparse.ArgumentParser(
-        description="""Optimize the grouping of orders into jobs.
-
-        Each job can consist of up to m orders that all start in parallel.
-        The orders in the same job are restricted to have preferred start times
-        which differ by no more than k seconds.
-        Only one job can run at the same time.
-        The goal is to minimize the total run time of all jobs.
-        """
-    )
-    parser.add_argument("m", type=int, help="maximum number of orders per job")
-    parser.add_argument("k", type=int, help="maximum time difference in seconds between preferred start times of orders in the same job")
-    parser.add_argument("input", help="input csv-file containing the orders")
-    parser.add_argument("output", help="output csv-file for the jobs")
-    
-    args = parser.parse_args()
-    max_diff = timedelta(seconds=abs(args.k))
-
-    orders = parse_input(args.input)
-    jobs = group_orders(orders, args.m, max_diff)
-    improve_iteratively(jobs, args.m, max_diff)
-    determine_job_starts(jobs, jobs[0].orders[0].start)
-    check_jobs(jobs, args.m, max_diff)
-    print(f"The deviation from the theoretical best make span is {makespan_deviation(jobs, args.m):.1%}.")
-    format_output(jobs, args.output)
 
 
 def check_jobs(jobs: Sequence[Job], m: int, max_diff: timedelta):
@@ -388,6 +360,34 @@ def makespan_deviation(jobs: Sequence[Job], m: int) -> float:
     span_no_constraint = makespan(jobs_no_constraint)
     span = makespan(jobs)
     return float(span - span_no_constraint) / span_no_constraint
+
+
+def main():
+    parser = argparse.ArgumentParser(
+        description="""Optimize the grouping of orders into jobs.
+
+        Each job can consist of up to m orders that all start in parallel.
+        The orders in the same job are restricted to have preferred start times
+        which differ by no more than k seconds.
+        Only one job can run at the same time.
+        The goal is to minimize the total run time of all jobs.
+        """
+    )
+    parser.add_argument("m", type=int, help="maximum number of orders per job")
+    parser.add_argument("k", type=int, help="maximum time difference in seconds between preferred start times of orders in the same job")
+    parser.add_argument("input", help="input csv-file containing the orders")
+    parser.add_argument("output", help="output csv-file for the jobs")
+    
+    args = parser.parse_args()
+    max_diff = timedelta(seconds=abs(args.k))
+
+    orders = parse_input(args.input)
+    jobs = group_orders(orders, args.m, max_diff)
+    improve_iteratively(jobs, args.m, max_diff)
+    determine_job_starts(jobs, jobs[0].orders[0].start)
+    # check_jobs(jobs, args.m, max_diff)
+    print(f"The deviation from the optimal make span in the no constraint case is {makespan_deviation(jobs, args.m):.1%}.")
+    format_output(jobs, args.output)
             
 
 if __name__ == "__main__":
