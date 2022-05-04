@@ -1,8 +1,8 @@
 import argparse
 import csv
 from datetime import datetime, timedelta
-from itertools import islice
-from typing import Generator, Iterable, MutableSequence, NewType, Optional, Type, TypeVar, Tuple
+from itertools import pairwise
+from typing import Generator, Iterable, MutableSequence, NewType, Optional, Sequence, Type, TypeVar, Tuple
 
 from attrs import define
 
@@ -49,7 +49,7 @@ class Job:
     def __init__(self, orders: Iterable[Order], start: Optional[datetime] = None) -> None:
         self.start = start
         self.orders = sorted(orders, key=lambda order: order.start)
-        self.duration = max(map(lambda order: order.duration, self.orders), default=Seconds(0))
+        self.duration = max((order.duration for order in self.orders), default=Seconds(0))
 
     def format(self) -> Generator[str, None, None]:
         assert self.start is not None, "Job needs to have a start date set."
@@ -288,8 +288,31 @@ def main():
     jobs = naively_group_orders(orders, args.m, max_diff)
     improve_iteratively(jobs, args.m, max_diff)
     determine_job_starts(jobs, jobs[0].orders[0].start)
+    check_jobs(jobs, args.m, max_diff)
     format_output(jobs, args.output)
 
+
+def check_jobs(jobs: Sequence[Job], m: int, max_diff: timedelta):
+    if not jobs:
+        return
+    finish = None
+    for job in jobs:
+        if job.start is None:
+            raise ValueError("Job.start is None.")
+        if finish is not None and finish > job.start:
+            raise ValueError(f"Previous job finishes at {finish} but this job already starts at {job.start}.")
+        if len(job.orders) > m:
+            raise ValueError(f"Job {job} has {len(job.orders)} orders, which is more than m = {m} orders.")
+        if any(order.start > next_order.start for (order, next_order) in pairwise(job.orders)):
+            raise ValueError(f"Job.orders {job.orders} are not sorted by preferred start.")
+        if job.orders and job.orders[-1].start - job.orders[0].start > max_diff:
+            raise ValueError(
+                f"The largest difference between the preferred starts of the orders is "
+                f"{job.orders[-1].start - job.orders[0].start}, which is larger than {max_diff}.")
+        if job.duration != max((order.duration for order in job.orders), default=Seconds(0)):
+            raise ValueError(f"Job.duration {job.duration} is not the maximum of the durations of the orders {job.orders}.")
+        finish = job.start + timedelta(seconds=job.duration)
+            
 
 if __name__ == "__main__":
     main()
