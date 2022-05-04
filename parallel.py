@@ -1,7 +1,7 @@
 import argparse
 import csv
 from datetime import datetime, timedelta
-from itertools import pairwise
+from itertools import chain, pairwise
 from typing import Generator, Iterable, MutableSequence, NewType, Optional, Sequence, Type, TypeVar, Tuple
 
 from attrs import define
@@ -339,6 +339,7 @@ def main():
     improve_iteratively(jobs, args.m, max_diff)
     determine_job_starts(jobs, jobs[0].orders[0].start)
     check_jobs(jobs, args.m, max_diff)
+    print(f"The deviation from the theoretical best make span is {makespan_deviation(jobs, args.m):.1%}.")
     format_output(jobs, args.output)
 
 
@@ -359,6 +360,34 @@ def check_jobs(jobs: Sequence[Job], m: int, max_diff: timedelta):
         if job.duration != max((order.duration for order in job.orders), default=Seconds(0)):
             raise ValueError(f"Job.duration {job.duration} is not the maximum of the durations of the orders {job.orders}.")
         finish = job.start + timedelta(seconds=job.duration)
+
+
+def makespan(jobs: Sequence[Job]) -> Seconds:
+    """
+    Calculate the makespan of the `jobs`.
+
+    The jobs must have start times determined and be ordered by them.
+    """
+    if not jobs:
+        return Seconds(0)
+    assert jobs[-1].start is not None, "Last job start time cannot be None."
+    assert jobs[0].start is not None, "First job start time cannot be None."
+    end = jobs[-1].start + timedelta(seconds=jobs[-1].duration)
+    return Seconds(int((end - jobs[0].start).total_seconds()))
+
+
+def makespan_deviation(jobs: Sequence[Job], m: int) -> float:
+    """
+    Calculate the deviation of the makespan for `jobs` 
+    from the optimal makespan in the case of no constraint.
+    """
+    assert jobs and jobs[0].start is not None
+    orders = chain(*(job.orders for job in jobs))
+    jobs_no_constraint = group_orders_no_constraint(orders, m)
+    determine_job_starts(jobs_no_constraint, jobs[0].start)
+    span_no_constraint = makespan(jobs_no_constraint)
+    span = makespan(jobs)
+    return float(span - span_no_constraint) / span_no_constraint
             
 
 if __name__ == "__main__":
