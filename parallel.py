@@ -285,6 +285,7 @@ def main():
 
     orders = parse_input(args.input)
     jobs = naively_group_orders(orders, args.m, args.k)
+    improve_iteratively(jobs, args.m, args.k)
     determine_job_starts(jobs, jobs[0].orders[0].start)
     format_output(jobs, args.output)
 
