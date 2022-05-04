@@ -79,7 +79,7 @@ def naively_group_orders(orders: Iterable[Order], m: int, max_diff: timedelta) -
     orders = sorted(orders, key=lambda order: order.start)
     n = len(orders)
 
-    jobs = list()
+    jobs = list()  # type: list[Job]
     
     i = 0  # index of the first order included in the current job
     while i < n:
@@ -89,6 +89,50 @@ def naively_group_orders(orders: Iterable[Order], m: int, max_diff: timedelta) -
             j -= 1
         jobs.append(Job(orders[i:j]))
         i = j
+
+    return jobs
+
+
+def group_orders_no_constraint(orders: Iterable[Order], m: int) -> list[Job]:
+    """
+    Group `orders` into jobs without considering the constraint.
+
+    Return the list of jobs with the shortest possible makespan,
+    if each Job can consist of up to `m` orders.
+    """
+    # The shortest makespan is obtained by grouping the m orders with the longest durations into a job
+    # and then repeating this process for the remaining orders.
+    orders = sorted(orders, key=lambda order: order.duration, reverse=True)
+    return [Job(orders[i:i+m]) for i in range(0, len(orders), m)]
+
+
+def group_orders(orders: Iterable[Order], m: int, max_diff: timedelta) -> list[Job]:
+    """
+    Group `orders` into jobs with up to `m` orders under the constraint 
+    that the preferred start times of orders for the same job can at most differ by `max_diff`.
+
+    First group orders into groups such that all orders in a group fulfill the constraint.
+    Then use `group_orders_no_constraint` to further group these groups into jobs.
+    """
+    orders = sorted(orders, key=lambda order: order.start)
+    jobs = list()  # type: list[Job]
+
+    begin = 0
+    while begin < len(orders):
+        end = begin
+        latest_start = orders[begin].start + max_diff
+        if orders[-1].start <= latest_start:
+            jobs.extend(group_orders_no_constraint(orders[begin:end], m))
+            break
+        while orders[end].start <= latest_start:
+            end += 1
+        if end - begin <= m:
+            jobs.append(Job(orders[begin:end]))
+        else:
+            # Choose largest end such that the slice orders[begin:end] contains a multiple of m orders.
+            end -= (end - begin) % m
+            jobs.extend(group_orders_no_constraint(orders[begin:end], m))
+        begin = end
 
     return jobs
 
@@ -291,7 +335,7 @@ def main():
     max_diff = timedelta(seconds=abs(args.k))
 
     orders = parse_input(args.input)
-    jobs = naively_group_orders(orders, args.m, max_diff)
+    jobs = group_orders(orders, args.m, max_diff)
     improve_iteratively(jobs, args.m, max_diff)
     determine_job_starts(jobs, jobs[0].orders[0].start)
     check_jobs(jobs, args.m, max_diff)
